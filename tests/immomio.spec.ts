@@ -1,0 +1,44 @@
+import {test,expect} from '@playwright/test';
+import {resolve} from 'node:path';
+import {match,defaults} from '../src/model';
+const portal='https://www.harabau.de/wohnen/wohnungsangebote/';
+const frameUrl='https://homepage.immomio.com/de/properties?token=fixture-only';
+const detailUrl='https://tenant.immomio.com/de/apply/9842f6f9-7c34-4414-a032-73e93bcad52c';
+test('real Immomio card markup imports across an iframe and detail enriches without duplication',async({page,context})=>{
+  const store:Record<string,any>={};
+  await context.exposeBinding('workerMessage',async({frame},message)=>{
+    return page.evaluate(({message,sender})=>new Promise(resolve=>(window as any).receive(message,sender,resolve)),{message,sender:{id:'test',url:frame.url(),frameId:frame===page.mainFrame()?0:1,tab:{id:1,url:portal}}});
+  });
+  await context.exposeBinding('getStore',(_source,key)=>({[key]:store[key]}));
+  await context.exposeBinding('setStore',(_source,data)=>{Object.assign(store,data);});
+  await context.addInitScript(()=>{
+    const w=window as any;
+    w.chrome={runtime:{id:'test',getURL:(p:string)=>`chrome-extension://test/${p}`,onMessage:{addListener:(fn:any)=>{w.receive=fn;}},sendMessage:(m:any)=>w.workerMessage(m)},storage:{onChanged:{addListener:()=>{}},local:{get:(key:string)=>w.getStore(key),set:(data:any)=>w.setStore(data)}},action:{onClicked:{addListener:()=>{}},setBadgeText:async()=>{},setBadgeBackgroundColor:async()=>{}}};
+  });
+  await context.route(portal,r=>r.fulfill({contentType:'text/html; charset=utf-8',body:`<h1>HARABAU</h1><iframe width="1100" height="900" src="${frameUrl}"></iframe>`}));
+  await context.route(frameUrl,r=>r.fulfill({contentType:'text/html; charset=utf-8',path:resolve('tests/fixtures/immomio-cards.html')}));
+  await context.route(detailUrl,r=>r.fulfill({contentType:'text/html; charset=utf-8',path:resolve('tests/fixtures/immomio-detail.html')}));
+  await page.goto(portal);
+  await page.addScriptTag({path:resolve('dist/background.js'),type:'module'});
+  await page.waitForFunction(()=>!!(window as any).receive);
+  const frame=page.frames().find(f=>f.url().startsWith('https://homepage.immomio.com'))!;
+  await frame.addScriptTag({path:resolve('dist/capture.js')});
+  await expect.poll(()=>store.houseHunt?.apartments.length).toBe(4);
+  const target=()=>store.houseHunt.apartments.find((a:any)=>a.availability==='2027-02-01');
+  expect(target()).toMatchObject({rooms:2.5,area:70.1,rent:834,sourceId:'portal-5',url:'https://tenant.immomio.com/en/landlords/9ef8772e-e464-4aa2-9d84-b290635cdb38/search',heating:'Unknown'});
+  expect(match(target(),defaults).category).toBe('Needs review');
+  expect(target().visitedAt).toBeUndefined();
+  expect(store.houseHunt.apartments.filter((a:any)=>a.stage==='Archived')).toHaveLength(3);
+  const id=target().id;
+  await frame.locator('app-card').first().evaluate(el=>el.append(document.createElement('span')));
+  await page.waitForTimeout(1100);
+  expect(store.houseHunt.apartments.length).toBe(4);
+  const detail=await context.newPage();
+  await detail.goto(detailUrl);
+  await detail.addScriptTag({path:resolve('dist/capture.js')});
+  await expect.poll(()=>target().heating).toBe('Included');
+  expect(target()).toMatchObject({id,rooms:2.5,area:70.1,rent:834,url:detailUrl});
+  expect(store.houseHunt.apartments.length).toBe(4);
+  expect(match(target(),defaults).category).toBe('Matches');
+  expect(target().visitedAt).toBeTruthy();
+});

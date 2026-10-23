@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Hamburg House Hunt",
+  "version": "1.3.0",
+  "description": "Your local apartment shortlist and housing portal checklist.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_title": "Open House Hunt"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://2211665.hpm.immosolve.eu/*",
+        "https://2222820.hpm.immosolve.eu/*",
+        "https://dhu.hamburg/*",
+        "https://tenant.immomio.com/*",
+        "https://wv1902.de/*",
+        "https://www.bds-hamburg.de/*",
+        "https://www.bg-fuhlsbuettel.de/*",
+        "https://www.bgfg.de/*",
+        "https://www.buchdrucker.de/*",
+        "https://www.bve.de/*",
+        "https://www.ebv-harburg.de/*",
+        "https://www.gartenstadt-wandsbek.de/*",
+        "https://www.hamburgerwohnen.de/*",
+        "https://www.hanseatische.de/*",
+        "https://www.harabau.de/*",
+        "https://www.immobilienscout24.de/*",
+        "https://www.kaifu.de/*",
+        "https://www.mgf-farmsen.de/*",
+        "https://www.reiherstieg.de/*",
+        "https://www.vhw-hamburg.de/*",
+        "https://www.walddoerfer.de/*",
+        "https://*.immomio.com/*",
+        "https://*.immomio.de/*",
+        "https://*.immosolve.eu/*",
+        "https://*.wohnungshelden.de/*"
+      ],
+      "js": [
+        "capture.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}
