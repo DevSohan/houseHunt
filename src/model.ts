@@ -3,11 +3,14 @@ export type Stage = 'Saved' | 'Contacted' | 'Viewing' | 'Archived';
 export interface Criteria { city: string; rooms: number; area: number; rent: number; from: string; to: string }
 export interface Portal { id: string; name: string; url: string; type?: 'website' | 'immomio'; landlordId?: string; applicationsUrl?: string; enabled: boolean; status: PortalStatus; checkedAt: string | null }
 export interface Apartment { id: string; title: string; url: string; sourceId: string; city: string; location: string; rooms: number | null; area: number | null; rent: number | null; heating: 'Unknown' | 'Included' | 'Excluded'; availability: string; notes: string; stage: Stage; createdAt: string; visitedAt?: string; autoArchivedFrom?: Exclude<Stage,'Archived'>; capture?: {key: string; lastSeen: string; manual: boolean} }
-export interface Data { version: 1; criteria: Criteria; portals: Portal[]; apartments: Apartment[]; autoCapture?: boolean; dismissedKeys?: string[]; settingsRevision?: 1; portalRevision?: 1 }
+export interface Data { version: 1; criteria: Criteria; portals: Portal[]; apartments: Apartment[]; autoCapture?: boolean; dismissedKeys?: string[]; settingsRevision?: 1; portalRevision?: 1 | 2 | 3 | 4 }
 export const defaults: Criteria = { city: 'Hamburg', rooms: 2.5, area: 70, rent: 1400, from: '2027-01-01', to: '2027-05-31' };
+const ggiPortal = ['GGI Hamburg', 'https://www.ggi-hamburg.de/vermietung/wohnungen'] as const;
+const sagaPortal = ['SAGA', 'https://www.saga.hamburg/immobiliensuche?Kategorie=APARTMENT'] as const;
 export const portalSeeds = [
   ['ImmoScout24', 'https://www.immobilienscout24.de/Suche/de/hamburg/hamburg/wohnung-mieten?haspromotion=false&numberofrooms=2.5-&price=-1400.0&livingspace=70.0-&pricetype=calculatedtotalrent&sorting=2&enteredFrom=filter_removals'],
   ['Immomio', 'https://tenant.immomio.com/de/landlords'],
+  sagaPortal,
   ['EBV Harburg', 'https://www.ebv-harburg.de/wohnungen/wohnungsangebote/'],
   ['Gartenstadt Wandsbek', 'https://www.gartenstadt-wandsbek.de/wohnen/freie-wohnungen/'],
   ['Immosolve 2211665', 'https://2211665.hpm.immosolve.eu/#!/result-list-2'],
@@ -27,7 +30,12 @@ export const portalSeeds = [
   ['vhw Hamburg', 'https://www.vhw-hamburg.de/wohnen/aktuelle-angebote.html'],
   ['KAIFU', 'https://www.kaifu.de/wohnen/mietangebote/'],
   ['Wohnungsverein Hamburg von 1902', 'https://wv1902.de/wohnungsangebote/'],
+  ggiPortal,
 ];
+const newImmomioLandlords = [
+  ['Baugenossenschaft Hamburger Wohnen eG', '448713d3-286f-4327-a0d7-75ceec87559f', 'Hamburger Wohnen'],
+  ['Baugenossenschaft Finkenwärder-Hoffnung eG', 'c1cb87ad-b441-4fa0-9e37-fbe208da6086'],
+] as const;
 export const immomioLandlords = [
   ['Bauverein Reiherstieg eG', '9e3c3277-b667-43b4-96be-bd026126eb4e', 'Reiherstieg'],
   ['Wohnbau GmbH', '6476ded2-426b-5f58-a43e-22b299ceddd9'],
@@ -44,6 +52,7 @@ export const immomioLandlords = [
   ['GCV Verwaltungs GmbH', '220afd1c-2227-d7b3-9c0c-54a8d6a715dd'],
   ['PIPPING Immobilien GmbH & Co. KG', '2f89b925-b214-4ccb-68c0-681b5431cdb7'],
   ['GCV Verwaltungs GmbH', '32bc12e2-67c7-2595-a414-dd099cd4d71a'],
+  ...newImmomioLandlords,
 ] as const;
 export const validLandlordId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 export function portalUrls(p: Pick<Portal,'url'|'type'|'landlordId'|'applicationsUrl'>) {
@@ -53,16 +62,16 @@ export function portalUrls(p: Pick<Portal,'url'|'type'|'landlordId'|'application
   }
   return {url:p.url,applicationsUrl:p.applicationsUrl};
 }
-function migratePortals(portals:Portal[]):Portal[] {
-  const next=portals.map(p=>p.url==='https://www.buchdrucker.de/de/wohnungsangebote'?{...p,url:'https://www.buchdrucker.de/de/wohnungsangebote-stellplatzangebote-gewerbeangebote'}:p);
-  for(const entry of immomioLandlords) {
+function migratePortals(portals:Portal[],landlords:ReadonlyArray<readonly [string,string,string?]>=immomioLandlords,addMissing=false):Portal[] {
+  const next=landlords===immomioLandlords?portals.map(p=>p.url==='https://www.buchdrucker.de/de/wohnungsangebote'?{...p,url:'https://www.buchdrucker.de/de/wohnungsangebote-stellplatzangebote-gewerbeangebote'}:p):[...portals];
+  for(const entry of landlords) {
     const [name,landlordId]=entry;
-    const oldName=entry.length===3?entry[2]:undefined;
+    const oldName=entry[2];
     const oldUrl=portalSeeds.find(([n])=>n===oldName)?.[1];
     const url=portalUrls({url:'',type:'immomio',landlordId}).url;
     const index=next.findIndex(p=>p.landlordId===landlordId || p.url===url || p.url===url.replace('/search','/applications') || (oldUrl && p.url===oldUrl));
     if(index>=0)next[index]={...next[index],name,type:'immomio',landlordId,url};
-    else if(!oldName) {
+    else if(!oldName || addMissing) {
       let id=`immomio-${landlordId}`;
       while(next.some(p=>p.id===id))id+='-new';
       next.push({id,name,type:'immomio',landlordId,url,enabled:true,status:'Not checked',checkedAt:null});
@@ -70,7 +79,7 @@ function migratePortals(portals:Portal[]):Portal[] {
   }
   return next;
 }
-export function initialData(): Data { return { version: 1, settingsRevision:1, portalRevision:1, criteria: {...defaults}, portals:migratePortals(portalSeeds.map(([name,url],i) => ({id:`portal-${i}`,name,url,enabled:true,status:'Not checked',checkedAt:null}))), apartments: [] }; }
+export function initialData(): Data { return { version: 1, settingsRevision:1, portalRevision:4, criteria: {...defaults}, portals:migratePortals(portalSeeds.map(([name,url],i) => ({id:i===2?'portal-saga':`portal-${i>2?i-1:i}`,name,url,enabled:true,status:'Not checked',checkedAt:null}))), apartments: [] }; }
 export function validDate(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value; }
 export function validUrl(value: string): boolean { try { return ['https:', 'http:'].includes(new URL(value).protocol); } catch { return false; } }
 export function urlKey(value: string): string { try { return new URL(value).href; } catch { return value.trim(); } }
@@ -93,7 +102,26 @@ export function match(a: Apartment, c: Criteria) {
 // Validate untrusted backups and stored data before making them application state.
 export function reconcileData(data:Data):Data {
   const criteria=!data.settingsRevision && data.criteria.from==='2027-02-01'?{...data.criteria,from:'2027-01-01'}:data.criteria;
-  return {...data,criteria,settingsRevision:1,portalRevision:1,portals:(data.portalRevision?data.portals:migratePortals(data.portals)).map(p=>({...p,url:portalUrls(p).url})),apartments:data.apartments.map(a=>{
+  let portals=data.portalRevision?[...data.portals]:migratePortals(data.portals);
+  const [name,url]=ggiPortal;
+  if(data.portalRevision!==2 && data.portalRevision!==3 && data.portalRevision!==4 && !portals.some(p=>p.url.replace(/\/$/,'')===url)) {
+    let id='portal-ggi-hamburg';
+    while(portals.some(p=>p.id===id))id+='-new';
+    portals.push({id,name,url,enabled:true,status:'Not checked',checkedAt:null});
+  }
+  if(data.portalRevision!==3 && data.portalRevision!==4) {
+    const [sagaName,sagaUrl]=sagaPortal;
+    const existingIndex=portals.findIndex(p=>p.url===sagaUrl);
+    let saga=existingIndex>=0?portals.splice(existingIndex,1)[0]:undefined;
+    if(!saga) {
+      let id='portal-saga';
+      while(portals.some(p=>p.id===id))id+='-new';
+      saga={id,name:sagaName,url:sagaUrl,enabled:true,status:'Not checked',checkedAt:null};
+    }
+    portals.splice(2,0,saga);
+  }
+  if(data.portalRevision!==4)portals=migratePortals(portals,newImmomioLandlords,true);
+  return {...data,criteria,settingsRevision:1,portalRevision:4,portals:portals.map(p=>({...p,url:portalUrls(p).url})),apartments:data.apartments.map(a=>{
     if(match(a,criteria).category==='Does not match')return a.stage==='Archived'?a:{...a,stage:'Archived',autoArchivedFrom:a.stage};
     if(a.autoArchivedFrom){const {autoArchivedFrom,...rest}=a;return {...rest,stage:a.stage==='Archived'?autoArchivedFrom:a.stage};}
     return a;
@@ -106,7 +134,7 @@ export function validateData(value: unknown): Data {
   const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
   if (!obj(value) || value.version !== 1 || !obj(value.criteria) || !Array.isArray(value.portals) || !Array.isArray(value.apartments)) return fail();
   const c = value.criteria;
-  if(value.portalRevision!==undefined && value.portalRevision!==1)return fail();
+  if(value.portalRevision!==undefined && value.portalRevision!==1 && value.portalRevision!==2 && value.portalRevision!==3 && value.portalRevision!==4)return fail();
   if(value.settingsRevision!==undefined && value.settingsRevision!==1)return fail();
   if (value.autoCapture !== undefined && typeof value.autoCapture !== 'boolean') return fail();
   if (value.dismissedKeys !== undefined && (!Array.isArray(value.dismissedKeys) || !value.dismissedKeys.every(k=>str(k) && k.length>0 && k.length<=2000))) return fail();

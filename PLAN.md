@@ -6,7 +6,7 @@ Build a personal Chrome dashboard that opens housing portals, tracks manual logi
 Automatic capture runs on supported pages the user visits. Automatic login detection, background searches, and application submission are excluded. Login happens normally in the browser; indicators are manual checks.
 
 ## Portal dashboard
-Seed 31 unique offer URLs on first installation: the 16 website portals below and 15 Immomio landlords in the following table. Apply the one-time portal migration described below to existing dashboards. Preserve query strings and hash routes. Support adding, renaming, editing, reordering, enabling, and deleting portals. Open all enabled, selected, or individual portals; disable repeat clicks while opening and report individual failures. Each opened portal resets to Not checked; users record Login needed or Ready with timestamps. Keep cooperative entries separate even when they share platforms.
+Seed 32 unique offer URLs on first installation: the 17 website portals below and 15 Immomio landlords in the following table. Apply the one-time portal migration described below to existing dashboards. Preserve query strings and hash routes. Support adding, renaming, editing, reordering, enabling, and deleting portals. Open all enabled, selected, or individual portals; disable repeat clicks while opening and report individual failures. Each opened portal resets to Not checked; users record Login needed or Ready with timestamps. Keep cooperative entries separate even when they share platforms.
 
 | Name | URL |
 | --- | --- |
@@ -14,6 +14,7 @@ Seed 31 unique offer URLs on first installation: the 16 website portals below an
 | Immomio | https://tenant.immomio.com/de/landlords |
 | EBV Harburg | https://www.ebv-harburg.de/wohnungen/wohnungsangebote/ |
 | Gartenstadt Wandsbek | https://www.gartenstadt-wandsbek.de/wohnen/freie-wohnungen/ |
+| GGI Hamburg | https://www.ggi-hamburg.de/vermietung/wohnungen |
 | Immosolve 2211665 | https://2211665.hpm.immosolve.eu/#!/result-list-2 |
 | BVE | https://www.bve.de/wohnen-beim-bve/wohnungsbestand/wohnungsangebote/ |
 | dhu | https://dhu.hamburg/wohnen/wohnungsangebote/ |

@@ -6,7 +6,7 @@ test.beforeEach(async({page})=>{
     w.chrome={storage:{local:{get:async(key:string)=>({[key]:JSON.parse(localStorage.getItem(key)??'null')}),set:async(value:any)=>{if(w.failSave)throw new Error('Simulated storage failure');for(const key in value)localStorage.setItem(key,JSON.stringify(value[key]));}}},tabs:{create:async({url}:{url:string})=>{if(w.failUrl===url)throw new Error('Simulated tab failure');w.opened.push(url);return{id:w.opened.length};}}};
   });
   await page.goto('/');
-  await expect(page.locator('.portal')).toHaveCount(31);
+  await expect(page.locator('.portal')).toHaveCount(34);
 });
 test('portal opening, failure retry, status reset and persistence',async({page})=>{
   const first=page.locator('.portal').first();
@@ -17,8 +17,8 @@ test('portal opening, failure retry, status reset and persistence',async({page})
   await first.getByLabel('Enabled').click();
   await expect(first.getByLabel('Enabled')).not.toBeChecked();
   await page.getByRole('button',{name:'Open all enabled'}).click();
-  await expect(page.getByRole('status')).toContainText('Opened 30 of 30');
-  expect(await page.evaluate(()=>(window as any).opened.length)).toBe(30);
+  await expect(page.getByRole('status')).toContainText('Opened 31 of 31');
+  expect(await page.evaluate(()=>(window as any).opened.length)).toBe(31);
   await first.getByLabel('Select ImmoScout24').check();
   await page.getByRole('button',{name:'Open selected (1)'}).click();
   await expect(first.getByLabel('Check status')).toHaveValue('Not checked');
